@@ -23,6 +23,8 @@ class SessionRepository:
         session = await self.collection.find_one({"_id": ObjectId(session_id)})
         if session:
             session["_id"] = str(session["_id"])
+            messages = await self.get_messages(session_id)
+            session["messages"] = messages
         return session
 
     async def update(self, session_id: str, updates: dict[str, Any]) -> dict | None:

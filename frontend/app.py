@@ -4,6 +4,7 @@ import os
 import json
 
 API_URL = os.getenv("API_URL", "http://localhost:8000")
+ASSISTANT_GREETING = "Hi! Do you have any agriculture-related questions you'd like help with?"
 
 def init_session_state():
     if "session_id" not in st.session_state:
@@ -11,14 +12,55 @@ def init_session_state():
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
+
+def reset_chat_messages(messages=None):
+    st.session_state.messages = []
+
+    for msg in messages or []:
+        st.session_state.messages.append({"role": msg["role"], "content": msg["content"]})
+
+    if not st.session_state.messages:
+        st.session_state.messages.append({"role": "assistant", "content": ASSISTANT_GREETING})
+
+
+def create_chat_session(load_messages=True):
+    result = api_request("POST", "/chat/sessions", json={})
+    if not result:
+        return False
+
+    st.session_state.session_id = result.get("id") or result.get("_id")
+    if load_messages:
+        reset_chat_messages(result.get("messages"))
+    return bool(st.session_state.session_id)
+
+
+def render_sources(sources):
+    if not sources:
+        return
+
+    with st.expander("Sources"):
+        for src in sources:
+            if isinstance(src, dict):
+                source = src.get("source", "unknown")
+                similarity = src.get("similarity")
+                if similarity is not None:
+                    try:
+                        st.write(f"- {source} ({float(similarity):.2f})")
+                    except (TypeError, ValueError):
+                        st.write(f"- {source} ({similarity})")
+                else:
+                    st.write(f"- {source}")
+            else:
+                st.write(f"- {src}")
+
 def api_request(method, endpoint, json=None, params=None):
     url = f"{API_URL}{endpoint}"
     try:
         with httpx.Client() as client:
             if method == "GET":
-                response = client.get(url, params=params, timeout=30.0)
+                response = client.get(url, params=params, timeout=5.0)
             else:
-                response = client.post(url, json=json, timeout=30.0)
+                response = client.post(url, json=json, timeout=5.0)
         response.raise_for_status()
         return response.json()
     except Exception as e:
@@ -68,28 +110,20 @@ def chat_page():
     col1, col2 = st.columns([3, 1])
     with col2:
         if st.button("New Session"):
-            result = api_request("POST", "/chat/sessions", json={})
-            if result:
-                st.session_state.session_id = result.get("id") or result.get("_id")
-                st.session_state.messages = []
-                st.success("New session created!")
+            st.session_state.session_id = None
+            reset_chat_messages()
             st.rerun()
 
-    if not st.session_state.session_id:
-        result = api_request("POST", "/chat/sessions", json={})
-        if result:
-            st.session_state.session_id = result.get("id") or result.get("_id")
-            st.session_state.messages = []
+    if not st.session_state.messages:
+        reset_chat_messages()
 
-    st.caption(f"Session ID: {st.session_state.session_id}")
+    if st.session_state.session_id:
+        st.caption(f"Session ID: {st.session_state.session_id}")
 
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
             st.write(msg["content"])
-            if "sources" in msg and msg["sources"]:
-                with st.expander("Sources"):
-                    for src in msg["sources"]:
-                        st.write(f"- {src}")
+            render_sources(msg.get("sources"))
 
     if prompt := st.chat_input("Ask about crops, diseases, fertilizers..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
@@ -103,6 +137,13 @@ def chat_page():
             full_text = ""
             sources = []
             try:
+                if not st.session_state.session_id:
+                    with st.spinner("Starting chat session..."):
+                        if not create_chat_session(load_messages=False):
+                            raise RuntimeError(
+                                "Could not create a backend chat session. Check the MongoDB connection, then try again."
+                            )
+
                 for payload in stream_chat(st.session_state.session_id, prompt):
                     event = None
                     try:
@@ -125,9 +166,7 @@ def chat_page():
                 st.session_state.messages.append({"role": "assistant", "content": full_text, "sources": sources})
                 if sources:
                     with sources_box.container():
-                        with st.expander("Sources"):
-                            for src in sources:
-                                st.write(f"- {src}")
+                        render_sources(sources)
             except Exception as e:
                 st.error(f"API Error: {str(e)}")
 

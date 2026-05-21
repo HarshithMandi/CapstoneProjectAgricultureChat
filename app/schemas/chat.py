@@ -34,6 +34,7 @@ class Session(SessionBase):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     memory: dict[str, Any] = Field(default_factory=dict)
+    messages: list[Message] = Field(default_factory=list)
 
     class Config:
         populate_by_name = True
