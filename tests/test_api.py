@@ -1,5 +1,6 @@
 import importlib
 
+from app.langchain_components.retrievers import RetrieverService
 from app.main import app
 from fastapi.testclient import TestClient
 
@@ -89,3 +90,22 @@ def test_admin_setup_rejects_when_admin_exists(monkeypatch):
     )
 
     assert response.status_code == 409
+
+
+def test_retriever_diversifies_sources():
+    class FakeDoc:
+        def __init__(self, chunk_id, source):
+            self.metadata = {"chunk_id": chunk_id, "source": source}
+
+    service = RetrieverService(embeddings=object())
+    docs = [
+        (FakeDoc("wiki-1", "https://en.wikipedia.org/wiki/Agriculture"), 0.1),
+        (FakeDoc("wiki-2", "https://en.wikipedia.org/wiki/Agriculture"), 0.2),
+        (FakeDoc("wiki-3", "https://en.wikipedia.org/wiki/Agriculture"), 0.3),
+        (FakeDoc("fao-1", "https://www.fao.org/3/y3557e/y3557e00.htm"), 0.4),
+        (FakeDoc("wa-1", "https://www.agric.wa.gov.au/"), 0.5),
+    ]
+
+    selected = service._diversify_by_source(docs, top_k=3)
+
+    assert [doc.metadata["chunk_id"] for doc, _score in selected] == ["wiki-1", "fao-1", "wa-1"]
