@@ -1,7 +1,10 @@
+import importlib
+
 from app.main import app
 from fastapi.testclient import TestClient
 
 
+auth_module = importlib.import_module("app.api.routers.auth")
 client = TestClient(app)
 
 
@@ -24,3 +27,65 @@ def test_ingest_text_requires_auth():
         "topic": "crop-diseases"
     })
     assert response.status_code == 401
+
+
+def test_admin_setup_status_when_no_admin(monkeypatch):
+    class FakeUserRepository:
+        async def count_by_role(self, role):
+            assert role == "admin"
+            return 0
+
+    monkeypatch.setattr(auth_module, "UserRepository", FakeUserRepository)
+
+    response = client.get("/auth/admin-setup/status")
+
+    assert response.status_code == 200
+    assert response.json() == {"has_admin": False}
+
+
+def test_admin_setup_creates_admin_when_missing(monkeypatch):
+    class FakeUserRepository:
+        async def count_by_role(self, role):
+            assert role == "admin"
+            return 0
+
+        async def get_by_email(self, email):
+            return None
+
+        async def create(self, email, password_hash, role="user", full_name=None):
+            return {
+                "_id": "507f1f77bcf86cd799439011",
+                "email": email,
+                "password_hash": password_hash,
+                "full_name": full_name,
+                "role": role,
+                "is_active": True,
+                "created_at": "2026-05-22T00:00:00",
+            }
+
+    monkeypatch.setattr(auth_module, "UserRepository", FakeUserRepository)
+
+    response = client.post(
+        "/auth/admin-setup",
+        json={"email": "Admin@Example.com", "password": "password123", "full_name": "Admin User"},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["user"]["email"] == "admin@example.com"
+    assert response.json()["user"]["role"] == "admin"
+
+
+def test_admin_setup_rejects_when_admin_exists(monkeypatch):
+    class FakeUserRepository:
+        async def count_by_role(self, role):
+            assert role == "admin"
+            return 1
+
+    monkeypatch.setattr(auth_module, "UserRepository", FakeUserRepository)
+
+    response = client.post(
+        "/auth/admin-setup",
+        json={"email": "admin@example.com", "password": "password123"},
+    )
+
+    assert response.status_code == 409

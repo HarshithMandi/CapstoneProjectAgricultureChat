@@ -37,25 +37,43 @@ cp .env.example .env
 uv run uvicorn app.main:app --reload
 ```
 
+6. Start the React frontend:
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The frontend defaults to `http://localhost:5173` and calls the backend at `http://localhost:8000`. Set `VITE_API_URL` in `frontend/.env` if your backend runs elsewhere.
+
 ## API Endpoints
+
+### Auth & Admin
+- `POST /auth/register` - Create a standard user account
+- `GET /auth/admin-setup/status` - Check whether an admin account exists
+- `POST /auth/admin-setup` - Create the initial admin account when no admin exists
+- `POST /auth/login` - Login and receive a JWT bearer token
+- `GET /auth/me` - Get the authenticated user
+- `GET /admin/users` - Admin-only user listing
+- `PATCH /admin/users/{user_id}` - Admin-only role/status update
 
 ### Health
 - `GET /health` - Health check
 
 ### Knowledge Ingestion
-- `POST /ingest/url` - Ingest a single URL into the knowledge base
-- `POST /ingest/urls` - Ingest multiple URLs into the knowledge base
-- `POST /ingest/text` - Ingest raw text content into the knowledge base
+- `POST /ingest/url` - Admin-only ingestion of a single URL into the knowledge base
+- `POST /ingest/urls` - Admin-only ingestion of multiple URLs into the knowledge base
+- `POST /ingest/text` - Admin-only ingestion of raw text content into the knowledge base
 
 ### Chat & Sessions
-- `POST /chat/sessions` - Create a new chat session
+- `POST /chat/sessions` - Authenticated users create a new chat session
 - `GET /chat/sessions/{session_id}` - Get session history
 - `POST /chat/sessions/{session_id}/messages` - Send a message to a session (non-streaming)
 - `POST /chat/sessions/{session_id}/messages/stream` - Send a message with streaming response
 
 ### Retrieval
-- `POST /retrieval/search` - Semantic search across ingested documents
-- `GET /retrieval/chunk/{chunk_id}` - Get a specific chunk by ID
+- `POST /retrieval/search` - Admin-only semantic search across ingested documents
+- `GET /retrieval/chunk/{chunk_id}` - Admin-only retrieval of a specific chunk by ID
 
 ## Core Functions
 
@@ -80,15 +98,16 @@ uv run uvicorn app.main:app --reload
 - **FastAPI** - Backend API framework
 - **LangChain** - RAG pipeline and document processing
 - **ChromaDB** - Vector database for embeddings
-- **MongoDB** - Session and message storage
+- **MongoDB** - User, session, and message storage
 - **OpenRouter** - LLM and embedding models
+- **React + Vite** - Role-aware frontend dashboard
 
 ## Directory Structure
 
 ```
 app/
 ├── api/
-│   └── routers/       # FastAPI route handlers (chat, ingest, retrieval, health)
+│   └── routers/       # FastAPI route handlers (auth, chat, ingest, retrieval, health)
 ├── services/          # Business logic services (chat, ingest, retrieval, etc.)
 ├── langchain_components/  # LangChain utilities (embeddings, retrievers, chains)
 ├── db/
@@ -101,5 +120,5 @@ app/
 └── prompts/           # LLM prompt templates
 scripts/              # Utility scripts for data ingestion
 data/                 # Raw and processed data storage
-frontend/             # Streamlit frontend application
+frontend/             # React + Vite frontend application
 ```

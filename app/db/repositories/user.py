@@ -14,6 +14,9 @@ class UserRepository:
     async def count(self) -> int:
         return await self.collection.count_documents({})
 
+    async def count_by_role(self, role: str) -> int:
+        return await self.collection.count_documents({"role": role})
+
     async def create(
         self,
         email: str,

@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str = Field(default="change-me-in-production", description="Secret key used to sign JWTs")
     JWT_ALGORITHM: str = Field(default="HS256", description="JWT signing algorithm")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=1440, description="Access token lifetime in minutes")
+    CORS_ORIGINS: str = Field(
+        default="http://localhost:5173,http://127.0.0.1:5173",
+        description="Comma-separated frontend origins allowed to call the API",
+    )
 
     LLM_MODEL: str = Field(default="openai/gpt-oss-120b:free", description="LLM model identifier")
     EMBEDDING_MODEL: str = Field(default="nvidia/llama-nemotron-embed-vl-1b-v2:free", description="Embedding model identifier")

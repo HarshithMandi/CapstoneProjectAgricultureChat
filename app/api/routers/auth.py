@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.api.deps import get_current_user, require_admin
 from app.core.security import create_access_token, hash_password, verify_password
 from app.db.repositories.user import UserRepository
-from app.schemas.auth import TokenResponse, UserCreate, UserLogin, UserPublic, UserUpdate
+from app.schemas.auth import AdminSetupStatus, TokenResponse, UserCreate, UserLogin, UserPublic, UserUpdate
 
 router = APIRouter(tags=["auth"])
 
@@ -19,11 +19,39 @@ async def register(request: UserCreate):
     if existing:
         raise HTTPException(status_code=409, detail="Email already registered")
 
-    role = "admin" if await repo.count() == 0 else "user"
     user = await repo.create(
         email=email,
         password_hash=hash_password(request.password),
-        role=role,
+        role="user",
+        full_name=request.full_name,
+    )
+    token = create_access_token(user["_id"], user["role"])
+    return TokenResponse(access_token=token, user=UserPublic(**user))
+
+
+@router.get("/auth/admin-setup/status", response_model=AdminSetupStatus)
+async def admin_setup_status():
+    return AdminSetupStatus(has_admin=await UserRepository().count_by_role("admin") > 0)
+
+
+@router.post("/auth/admin-setup", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+async def create_initial_admin(request: UserCreate):
+    repo = UserRepository()
+    if await repo.count_by_role("admin") > 0:
+        raise HTTPException(status_code=409, detail="An admin account already exists")
+
+    email = request.email.strip().lower()
+    if "@" not in email:
+        raise HTTPException(status_code=422, detail="Valid email is required")
+
+    existing = await repo.get_by_email(email)
+    if existing:
+        raise HTTPException(status_code=409, detail="Email already registered")
+
+    user = await repo.create(
+        email=email,
+        password_hash=hash_password(request.password),
+        role="admin",
         full_name=request.full_name,
     )
     token = create_access_token(user["_id"], user["role"])

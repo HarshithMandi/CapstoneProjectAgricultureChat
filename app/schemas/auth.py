@@ -34,6 +34,10 @@ class TokenResponse(BaseModel):
     user: UserPublic
 
 
+class AdminSetupStatus(BaseModel):
+    has_admin: bool
+
+
 class UserUpdate(BaseModel):
     role: Role | None = None
     is_active: bool | None = None
