@@ -1,4 +1,5 @@
 from typing import Any
+from urllib.parse import urlparse
 
 import logging
 from app.services.ingest_service import IngestService
@@ -11,6 +12,67 @@ from app.langchain_components.embeddings import OpenRouterEmbeddings
 from app.utils.text import is_farming_related, farming_refusal_message
 
 logger = logging.getLogger(__name__)
+
+
+def _is_url(value: str | None) -> bool:
+    if not value:
+        return False
+    parsed = urlparse(value)
+    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
+
+def _source_key(metadata: dict[str, Any]) -> str:
+    url = metadata.get("url") or ""
+    source = metadata.get("source") or ""
+    if _is_url(url):
+        return url.strip()
+    if _is_url(source):
+        return source.strip()
+    return (
+        metadata.get("doc_id")
+        or metadata.get("chunk_id")
+        or source.strip()
+        or metadata.get("title")
+        or "unknown"
+    )
+
+
+def _format_sources(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[str, dict[str, Any]] = {}
+
+    for result in results:
+        metadata = result.get("metadata") or {}
+        key = _source_key(metadata)
+        source = metadata.get("source") or "unknown"
+        url = metadata.get("url") or (source if _is_url(source) else "")
+        score = result.get("similarity")
+        chunk_id = metadata.get("chunk_id")
+
+        if key not in grouped:
+            grouped[key] = {
+                "title": metadata.get("title") or "",
+                "source": source,
+                "url": url,
+                "topic": metadata.get("topic") or "",
+                "document_type": metadata.get("document_type") or "",
+                "doc_id": metadata.get("doc_id") or "",
+                "chunk_ids": [],
+                "chunk_count": 0,
+                "best_score": score,
+                "reference_type": "web" if _is_url(url) else "rag",
+            }
+
+        reference = grouped[key]
+        reference["chunk_count"] += 1
+        if chunk_id:
+            reference["chunk_ids"].append(chunk_id)
+        if score is not None and (reference["best_score"] is None or score < reference["best_score"]):
+            reference["best_score"] = score
+
+    return sorted(
+        grouped.values(),
+        key=lambda item: (item["best_score"] is None, item["best_score"] or 0),
+    )
 
 
 class ChatService:
@@ -48,15 +110,11 @@ class ChatService:
             results = []
 
         context_parts = []
-        sources = []
         for result in results:
             context_parts.append(result["content"])
-            sources.append({
-                "source": result["metadata"].get("source", "unknown"),
-                "similarity": result["similarity"],
-            })
 
         context = "\n\n".join(context_parts) if context_parts else ""
+        sources = _format_sources(results)
         chat_history = await self.memory.get_chat_history(session_id)
 
         response = await self.llm.generate_with_context(message, context, chat_history)
@@ -89,17 +147,11 @@ class ChatService:
             results = []
 
         context_parts: list[str] = []
-        sources: list[dict[str, Any]] = []
         for result in results:
             context_parts.append(result["content"])
-            sources.append(
-                {
-                    "source": result["metadata"].get("source", "unknown"),
-                    "similarity": result["similarity"],
-                }
-            )
 
         context = "\n\n".join(context_parts) if context_parts else ""
+        sources = _format_sources(results)
         chat_history = await self.memory.get_chat_history(session_id)
 
         yield {"type": "meta", "sources": sources, "session_id": session_id}

@@ -1,5 +1,13 @@
 from app.utils.text import clean_text, normalize_agriculture_terms, remove_duplicate_lines
 from app.utils.metadata import create_metadata
+from urllib.parse import urlparse
+
+
+def _looks_like_url(value: str | None) -> bool:
+    if not value:
+        return False
+    parsed = urlparse(value)
+    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
 
 
 class ProcessingService:
@@ -14,7 +22,7 @@ class ProcessingService:
         doc_metadata = create_metadata(
             source=metadata.get("source", "unknown"),
             title=metadata.get("title"),
-            url=metadata.get("url"),
+            url=metadata.get("url") or (metadata.get("source") if _looks_like_url(metadata.get("source")) else None),
             topic=metadata.get("topic", "general"),
             document_type=metadata.get("document_type", "text"),
         )

@@ -476,14 +476,42 @@ function ChatBubble({ message }) {
       {Boolean(message.sources?.length) && (
         <details>
           <summary>Sources</summary>
-          <ul>
+          <ul className="source-list">
             {message.sources.map((source, index) => (
-              <li key={index}>{typeof source === "string" ? source : `${source.source || "unknown"}${source.similarity ? ` (${Number(source.similarity).toFixed(2)})` : ""}`}</li>
+              <SourceItem key={index} source={source} />
             ))}
           </ul>
         </details>
       )}
     </article>
+  );
+}
+
+function SourceItem({ source }) {
+  if (typeof source === "string") {
+    return <li>{source}</li>;
+  }
+
+  const title = source.title || source.source || source.url || "Untitled reference";
+  const score = Number.isFinite(Number(source.best_score)) ? Number(source.best_score).toFixed(2) : null;
+  const chunkText = source.chunk_count ? `${source.chunk_count} matched chunk${source.chunk_count === 1 ? "" : "s"}` : "matched RAG context";
+
+  if (source.reference_type === "web" && source.url) {
+    return (
+      <li>
+        <a href={source.url} target="_blank" rel="noreferrer">{title}</a>
+        <span className="source-meta">{chunkText}{score ? ` · score ${score}` : ""}</span>
+      </li>
+    );
+  }
+
+  return (
+    <li>
+      <span>{title}</span>
+      <span className="source-meta">
+        RAG storage{source.source && source.source !== title ? ` · ${source.source}` : ""}{source.document_type ? ` · ${source.document_type}` : ""}{source.topic ? ` · ${source.topic}` : ""}{score ? ` · score ${score}` : ""}{source.chunk_ids?.[0] ? ` · ${source.chunk_ids[0]}` : ""}
+      </span>
+    </li>
   );
 }
 

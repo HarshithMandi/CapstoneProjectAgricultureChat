@@ -438,6 +438,26 @@ label {
   margin-top: 10px;
 }
 
+.source-list {
+  display: grid;
+  gap: 8px;
+}
+
+.source-list li {
+  line-height: 1.35;
+}
+
+.source-list a {
+  overflow-wrap: anywhere;
+}
+
+.source-meta {
+  display: block;
+  margin-top: 2px;
+  color: #5f6c5d;
+  font-size: 13px;
+}
+
 .chat-input-row,
 .search-row {
   display: grid;
