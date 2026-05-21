@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Any
 from motor.motor_asyncio import AsyncIOMotorCollection
+from bson import ObjectId
 from app.db.mongo import get_sessions_collection, get_messages_collection
 
 
@@ -16,10 +17,10 @@ class SessionRepository:
             "memory": {},
         }
         result = await self.collection.insert_one(session)
-        return {"_id": str(result.inserted_id), **session}
+        return {"_id": str(result.inserted_id), "title": session["title"], "created_at": session["created_at"], "updated_at": session["updated_at"], "memory": session["memory"]}
 
     async def get(self, session_id: str) -> dict | None:
-        session = await self.collection.find_one({"_id": session_id})
+        session = await self.collection.find_one({"_id": ObjectId(session_id)})
         if session:
             session["_id"] = str(session["_id"])
         return session
@@ -27,14 +28,14 @@ class SessionRepository:
     async def update(self, session_id: str, updates: dict[str, Any]) -> dict | None:
         updates["updated_at"] = datetime.utcnow()
         await self.collection.update_one(
-            {"_id": session_id},
+            {"_id": ObjectId(session_id)},
             {"$set": updates},
         )
         return await self.get(session_id)
 
     async def update_memory(self, session_id: str, key: str, value: Any) -> None:
         await self.collection.update_one(
-            {"_id": session_id},
+            {"_id": ObjectId(session_id)},
             {"$set": {f"memory.{key}": value, "updated_at": datetime.utcnow()}},
         )
 

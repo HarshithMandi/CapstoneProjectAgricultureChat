@@ -1,7 +1,6 @@
 from langchain_core.documents import Document
 from app.langchain_components.embeddings import OpenRouterEmbeddings
-from app.langchain_components.vectorstore import add_documents
-import asyncio
+from app.langchain_components.vectorstore import aadd_documents
 
 
 class EmbeddingService:
@@ -9,8 +8,7 @@ class EmbeddingService:
         self.embeddings = embeddings or OpenRouterEmbeddings()
 
     async def embed_and_store(self, chunks: list[Document]) -> list[str]:
-        ids = add_documents(chunks, self.embeddings)
-        return ids
+        return await aadd_documents(chunks, self.embeddings)
 
     async def close(self):
         await self.embeddings.close()

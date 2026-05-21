@@ -1,6 +1,6 @@
 from typing import Any
 from app.langchain_components.embeddings import OpenRouterEmbeddings
-from app.langchain_components.vectorstore import get_retriever, similarity_search
+from app.langchain_components.vectorstore import get_retriever
 from app.db.chroma import get_chroma_collection
 
 
@@ -27,8 +27,8 @@ class RetrieverService:
         return results
 
     async def _asearch(self, query: str, top_k: int):
-        from app.langchain_components.vectorstore import similarity_search
-        return similarity_search(query, top_k, self.embeddings)
+        from app.langchain_components.vectorstore import asimilarity_search
+        return await asimilarity_search(query, top_k, self.embeddings)
 
     def get_chunk_by_id(self, chunk_id: str) -> dict[str, Any] | None:
         collection = get_chroma_collection()

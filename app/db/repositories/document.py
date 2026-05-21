@@ -1,5 +1,6 @@
 from datetime import datetime
 from motor.motor_asyncio import AsyncIOMotorCollection
+from bson import ObjectId
 from app.db.mongo import get_documents_collection
 
 
@@ -10,10 +11,15 @@ class DocumentRepository:
     async def create(self, document: dict) -> dict:
         document["created_at"] = datetime.utcnow()
         result = await self.collection.insert_one(document)
-        return {"_id": str(result.inserted_id), **document}
+        doc_id = str(result.inserted_id)
+        return {
+            "_id": doc_id,
+            "created_at": document["created_at"],
+            **{k: v for k, v in document.items() if k != "created_at"}
+        }
 
     async def get(self, document_id: str) -> dict | None:
-        doc = await self.collection.find_one({"_id": document_id})
+        doc = await self.collection.find_one({"_id": ObjectId(document_id)})
         if doc:
             doc["_id"] = str(doc["_id"])
         return doc

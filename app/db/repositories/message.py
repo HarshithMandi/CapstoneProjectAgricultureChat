@@ -15,7 +15,7 @@ class MessageRepository:
             "timestamp": datetime.utcnow(),
         }
         result = await self.collection.insert_one(message)
-        return {"_id": str(result.inserted_id), **message}
+        return {"_id": str(result.inserted_id), "session_id": session_id, "role": role, "content": content, "timestamp": datetime.utcnow()}
 
     async def get_by_session(self, session_id: str) -> list[dict]:
         cursor = self.collection.find({"session_id": session_id}).sort("timestamp", 1)

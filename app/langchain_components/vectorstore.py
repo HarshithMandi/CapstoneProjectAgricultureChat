@@ -1,3 +1,5 @@
+import asyncio
+
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from app.db.chroma import get_chroma_client, get_chroma_collection
@@ -24,6 +26,19 @@ def add_documents(
     return vectorstore.add_documents(documents)
 
 
+async def aadd_documents(
+    documents: list[Document],
+    embeddings: OpenRouterEmbeddings | None = None,
+) -> list[str]:
+    vectorstore = get_vectorstore(embeddings)
+
+    aadd = getattr(vectorstore, "aadd_documents", None)
+    if callable(aadd):
+        return await aadd(documents)
+
+    return await asyncio.to_thread(vectorstore.add_documents, documents)
+
+
 def similarity_search(
     query: str,
     top_k: int = 5,
@@ -31,6 +46,20 @@ def similarity_search(
 ) -> list[tuple[Document, float]]:
     vectorstore = get_vectorstore(embeddings)
     return vectorstore.similarity_search_with_score(query, k=top_k)
+
+
+async def asimilarity_search(
+    query: str,
+    top_k: int = 5,
+    embeddings: OpenRouterEmbeddings | None = None,
+) -> list[tuple[Document, float]]:
+    vectorstore = get_vectorstore(embeddings)
+
+    asearch = getattr(vectorstore, "asimilarity_search_with_score", None)
+    if callable(asearch):
+        return await asearch(query, k=top_k)
+
+    return await asyncio.to_thread(vectorstore.similarity_search_with_score, query, k=top_k)
 
 
 def get_retriever(embeddings: OpenRouterEmbeddings | None = None, top_k: int = 5):
