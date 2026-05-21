@@ -1,18 +1,23 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
+  Check,
   Database,
+  History,
   Loader2,
   LogOut,
   MessageCircle,
+  Pencil,
   Search,
   Settings,
   Shield,
   Sprout,
+  Trash2,
   UserCog,
   Users,
+  X,
 } from "lucide-react";
 import "./styles.css";
 
@@ -79,6 +84,8 @@ function App() {
     }
   });
   const [authChecked, setAuthChecked] = useState(false);
+  const [activeSessionId, setActiveSessionId] = useState(null);
+  const [sessionListVersion, setSessionListVersion] = useState(0);
 
   const isAdmin = user?.role === "admin";
 
@@ -144,7 +151,13 @@ function App() {
     localStorage.removeItem("agri_user");
     setToken(null);
     setUser(null);
+    setActiveSessionId(null);
     navigate("/login");
+  }
+
+  function onSessionChanged(sessionId) {
+    setActiveSessionId(sessionId);
+    setSessionListVersion((version) => version + 1);
   }
 
   if (!authChecked) {
@@ -161,8 +174,20 @@ function App() {
   }
 
   return (
-    <DashboardShell user={user} onLogout={logout} route={route}>
-      {route === "/chat" && <ChatPage token={token} />}
+    <DashboardShell
+      user={user}
+      token={token}
+      onLogout={logout}
+      route={route}
+      activeSessionId={activeSessionId}
+      onSelectSession={(sessionId) => {
+        setActiveSessionId(sessionId);
+        navigate("/chat");
+      }}
+      onSessionsMutated={() => setSessionListVersion((version) => version + 1)}
+      sessionListVersion={sessionListVersion}
+    >
+      {route === "/chat" && <ChatPage token={token} activeSessionId={activeSessionId} onSessionChanged={onSessionChanged} />}
       {route === "/ingest" && isAdmin && <IngestPage token={token} />}
       {route === "/search" && isAdmin && <SearchPage token={token} />}
       {route === "/users" && isAdmin && <UsersPage token={token} currentUser={user} />}
@@ -295,7 +320,7 @@ function RegisterForm({ onAuth, adminSetup = false }) {
   );
 }
 
-function DashboardShell({ user, onLogout, route, children }) {
+function DashboardShell({ user, token, onLogout, route, children, activeSessionId, onSelectSession, onSessionsMutated, sessionListVersion }) {
   const nav = [
     { path: "/chat", label: "Chat", icon: MessageCircle },
     ...(user.role === "admin"
@@ -333,6 +358,14 @@ function DashboardShell({ user, onLogout, route, children }) {
             );
           })}
         </nav>
+        <SessionHistory
+          token={token}
+          route={route}
+          activeSessionId={activeSessionId}
+          onSelectSession={onSelectSession}
+          onSessionsMutated={onSessionsMutated}
+          refreshKey={sessionListVersion}
+        />
         <button className="logout-button" onClick={onLogout}>
           <LogOut size={18} />
           Logout
@@ -343,17 +376,164 @@ function DashboardShell({ user, onLogout, route, children }) {
   );
 }
 
-function ChatPage({ token }) {
-  const [sessionId, setSessionId] = useState(null);
+function SessionHistory({ token, route, activeSessionId, onSelectSession, onSessionsMutated, refreshKey }) {
+  const [sessions, setSessions] = useState([]);
+  const [error, setError] = useState("");
+  const [editingId, setEditingId] = useState(null);
+  const [draftTitle, setDraftTitle] = useState("");
+
+  async function loadSessions() {
+    setError("");
+    try {
+      setSessions(await request("/chat/sessions", { token }));
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  useEffect(() => {
+    loadSessions();
+  }, [token, refreshKey]);
+
+  async function renameSession(sessionId) {
+    const title = draftTitle.trim();
+    if (!title) {
+      setError("Session name cannot be empty.");
+      return;
+    }
+
+    try {
+      setError("");
+      await request(`/chat/sessions/${sessionId}`, { method: "PATCH", body: { title }, token });
+      setEditingId(null);
+      await loadSessions();
+      onSessionsMutated();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function deleteSession(sessionId) {
+    if (!window.confirm("Delete this session and its saved messages?")) return;
+
+    try {
+      setError("");
+      await request(`/chat/sessions/${sessionId}`, { method: "DELETE", token });
+      if (sessionId === activeSessionId) onSelectSession(null);
+      await loadSessions();
+      onSessionsMutated();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  return (
+    <section className="session-history">
+      <div className="sidebar-section-title">
+        <History size={16} />
+        <span>Sessions</span>
+      </div>
+      <button className={!activeSessionId && route === "/chat" ? "active" : ""} onClick={() => onSelectSession(null)}>
+        New chat
+      </button>
+      <div className="session-list">
+        {sessions.map((session) => {
+          const id = getSessionId(session);
+          const title = session.title || "Untitled chat";
+          const isEditing = editingId === id;
+          return (
+            <div key={id} className={`session-row ${id === activeSessionId ? "active" : ""}`}>
+              {isEditing ? (
+                <>
+                  <input
+                    value={draftTitle}
+                    onChange={(event) => setDraftTitle(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") renameSession(id);
+                      if (event.key === "Escape") setEditingId(null);
+                    }}
+                    autoFocus
+                  />
+                  <button className="icon-button" title="Save session name" onClick={() => renameSession(id)}>
+                    <Check size={15} />
+                  </button>
+                  <button className="icon-button" title="Cancel rename" onClick={() => setEditingId(null)}>
+                    <X size={15} />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button className="session-select" onClick={() => onSelectSession(id)} title={title}>
+                    <span>{title}</span>
+                    <small>{formatSessionDate(session.updated_at || session.created_at)}</small>
+                  </button>
+                  <button
+                    className="icon-button"
+                    title="Rename session"
+                    onClick={() => {
+                      setEditingId(id);
+                      setDraftTitle(title);
+                    }}
+                  >
+                    <Pencil size={15} />
+                  </button>
+                  <button className="icon-button danger" title="Delete session" onClick={() => deleteSession(id)}>
+                    <Trash2 size={15} />
+                  </button>
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {error && <small className="sidebar-error">{error}</small>}
+    </section>
+  );
+}
+
+function ChatPage({ token, activeSessionId, onSessionChanged }) {
+  const [sessionId, setSessionId] = useState(activeSessionId);
   const [messages, setMessages] = useState([{ role: "assistant", content: GREETING }]);
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const sendingRef = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSession() {
+    setError("");
+    setLoading(false);
+    sendingRef.current = false;
+      if (!activeSessionId) {
+        setSessionId(null);
+        setMessages([{ role: "assistant", content: GREETING }]);
+        return;
+      }
+
+      try {
+        const session = await request(`/chat/sessions/${activeSessionId}`, { token });
+        if (cancelled) return;
+        setSessionId(getSessionId(session));
+        setMessages(normalizeSessionMessages(session.messages));
+      } catch (err) {
+        if (cancelled) return;
+        setError(err.message);
+      }
+    }
+
+    loadSession();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSessionId, token]);
 
   function newSession() {
     setSessionId(null);
     setMessages([{ role: "assistant", content: GREETING }]);
     setError("");
+    onSessionChanged(null);
   }
 
   async function ensureSession() {
@@ -367,16 +547,18 @@ function ChatPage({ token }) {
   async function sendMessage(event) {
     event.preventDefault();
     const text = prompt.trim();
-    if (!text || loading) return;
+    if (!text || loading || sendingRef.current) return;
 
+    sendingRef.current = true;
     setPrompt("");
     setError("");
     setLoading(true);
     setMessages((current) => [...current, { role: "user", content: text }, { role: "assistant", content: "" }]);
 
+    let currentSessionId = sessionId;
     try {
-      const id = await ensureSession();
-      await streamAssistantResponse(id, text, token, (event) => {
+      currentSessionId = await ensureSession();
+      await streamAssistantResponse(currentSessionId, text, token, (event) => {
         if (event.type === "meta") {
           setMessages((current) => replaceLastAssistant(current, { sources: event.sources || [] }));
         }
@@ -388,7 +570,9 @@ function ChatPage({ token }) {
       setError(err.message);
       setMessages((current) => replaceLastAssistant(current, { content: "I couldn't reach the chat service. Please check the backend and try again." }));
     } finally {
+      sendingRef.current = false;
       setLoading(false);
+      if (currentSessionId) onSessionChanged(currentSessionId);
     }
   }
 
@@ -692,6 +876,28 @@ function UsersPage({ token, currentUser }) {
 
 function getUserId(user) {
   return user?._id || user?.id;
+}
+
+function getSessionId(session) {
+  return session?._id || session?.id;
+}
+
+function normalizeSessionMessages(messages = []) {
+  const normalized = messages
+    .filter((message) => message?.role && typeof message.content === "string")
+    .map((message) => ({
+      role: message.role,
+      content: message.content,
+      sources: message.sources || [],
+    }));
+  return normalized.length ? normalized : [{ role: "assistant", content: GREETING }];
+}
+
+function formatSessionDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 function SettingsPage() {

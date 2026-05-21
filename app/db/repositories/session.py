@@ -27,6 +27,14 @@ class SessionRepository:
             "memory": session["memory"],
         }
 
+    async def list_for_user(self, user_id: str) -> list[dict]:
+        cursor = self.collection.find({"user_id": user_id}).sort("updated_at", -1)
+        sessions = await cursor.to_list(None)
+        for session in sessions:
+            session["_id"] = str(session["_id"])
+            session["messages"] = []
+        return sessions
+
     async def get(self, session_id: str) -> dict | None:
         session = await self.collection.find_one({"_id": ObjectId(session_id)})
         if session:
@@ -42,6 +50,22 @@ class SessionRepository:
             {"$set": updates},
         )
         return await self.get(session_id)
+
+    async def touch(self, session_id: str, title: str | None = None) -> None:
+        updates: dict[str, Any] = {"updated_at": datetime.utcnow()}
+        if title:
+            updates["title"] = title
+        await self.collection.update_one(
+            {"_id": ObjectId(session_id)},
+            {"$set": updates},
+        )
+
+    async def delete(self, session_id: str) -> bool:
+        result = await self.collection.delete_one({"_id": ObjectId(session_id)})
+        if result.deleted_count:
+            await self.collection.database["messages"].delete_many({"session_id": session_id})
+            return True
+        return False
 
     async def update_memory(self, session_id: str, key: str, value: Any) -> None:
         await self.collection.update_one(

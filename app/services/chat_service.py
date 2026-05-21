@@ -93,8 +93,25 @@ class ChatService:
     async def get_session(self, session_id: str) -> dict | None:
         return await self.session_repo.get(session_id)
 
+    async def list_sessions(self, user_id: str) -> list[dict]:
+        return await self.session_repo.list_for_user(user_id)
+
+    async def rename_session(self, session_id: str, title: str) -> dict | None:
+        return await self.session_repo.update(session_id, {"title": title.strip()})
+
+    async def delete_session(self, session_id: str) -> bool:
+        return await self.session_repo.delete(session_id)
+
+    async def _touch_session_for_message(self, session_id: str, message: str) -> None:
+        session = await self.session_repo.get(session_id)
+        title = None
+        if session and session.get("title") == "New Chat":
+            title = message.strip().replace("\n", " ")[:60] or None
+        await self.session_repo.touch(session_id, title=title)
+
     async def send_message(self, session_id: str, message: str) -> dict:
         await self.message_repo.create(session_id, "user", message)
+        await self._touch_session_for_message(session_id, message)
         await self.memory.extract_and_store_context(session_id, message)
 
         session_memory = await self.memory.get_session_memory(session_id)
@@ -129,6 +146,7 @@ class ChatService:
 
     async def stream_message(self, session_id: str, message: str):
         await self.message_repo.create(session_id, "user", message)
+        await self._touch_session_for_message(session_id, message)
         await self.memory.extract_and_store_context(session_id, message)
 
         session_memory = await self.memory.get_session_memory(session_id)

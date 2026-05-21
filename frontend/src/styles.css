@@ -220,7 +220,7 @@ label {
   top: 0;
   height: 100vh;
   display: grid;
-  grid-template-rows: auto auto 1fr auto;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
   gap: 18px;
   background: #1f2a23;
   color: #ffffff;
@@ -258,14 +258,16 @@ label {
   text-transform: capitalize;
 }
 
-.sidebar nav {
+.sidebar nav,
+.session-list {
   display: grid;
   align-content: start;
   gap: 8px;
 }
 
 .sidebar nav button,
-.logout-button {
+.logout-button,
+.session-history button {
   display: flex;
   gap: 10px;
   align-items: center;
@@ -274,6 +276,93 @@ label {
   border-color: transparent;
   background: transparent;
   color: #e8efe8;
+}
+
+.session-history {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.sidebar-section-title {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: #c7d5c8;
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.session-list {
+  min-height: 0;
+  overflow: auto;
+}
+
+.session-history > button,
+.session-select {
+  min-height: 44px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 10px;
+}
+
+.session-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px 34px;
+  gap: 4px;
+  align-items: stretch;
+}
+
+.session-row.active .session-select,
+.session-history > button.active {
+  background: #255f3f;
+  border-color: #255f3f;
+  color: #ffffff;
+}
+
+.session-row input {
+  grid-column: 1;
+  min-height: 40px;
+  padding: 8px;
+}
+
+.session-history .icon-button {
+  display: grid;
+  place-items: center;
+  min-height: 40px;
+  height: 40px;
+  width: 34px;
+  min-width: 34px;
+  gap: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.session-history .icon-button svg {
+  display: block;
+}
+
+.session-history .icon-button.danger:hover {
+  border-color: #f2c1c1;
+  color: #ffd5d5;
+}
+
+.session-select span,
+.session-select small {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-select small,
+.sidebar-error {
+  color: #c7d5c8;
+  font-size: 12px;
 }
 
 .logout-button {

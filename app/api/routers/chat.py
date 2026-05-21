@@ -3,7 +3,7 @@ import json
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from app.api.deps import get_chat_service, get_current_user
-from app.schemas.chat import ChatRequest, ChatResponse, SessionCreate, Session
+from app.schemas.chat import ChatRequest, ChatResponse, SessionCreate, Session, SessionUpdate
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -15,6 +15,12 @@ async def create_session(request: SessionCreate, current_user: dict = Depends(ge
     return session
 
 
+@router.get("/sessions", response_model=list[Session])
+async def list_sessions(current_user: dict = Depends(get_current_user)):
+    service = get_chat_service()
+    return await service.list_sessions(current_user["_id"])
+
+
 @router.get("/sessions/{session_id}", response_model=Session)
 async def get_session(session_id: str, current_user: dict = Depends(get_current_user)):
     service = get_chat_service()
@@ -24,6 +30,40 @@ async def get_session(session_id: str, current_user: dict = Depends(get_current_
     if current_user.get("role") != "admin" and session.get("user_id") != current_user["_id"]:
         raise HTTPException(status_code=403, detail="Not allowed to access this session")
     return session
+
+
+@router.patch("/sessions/{session_id}", response_model=Session)
+async def rename_session(
+    session_id: str,
+    request: SessionUpdate,
+    current_user: dict = Depends(get_current_user),
+):
+    service = get_chat_service()
+    session = await service.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if current_user.get("role") != "admin" and session.get("user_id") != current_user["_id"]:
+        raise HTTPException(status_code=403, detail="Not allowed to modify this session")
+
+    renamed = await service.rename_session(session_id, request.title)
+    if not renamed:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return renamed
+
+
+@router.delete("/sessions/{session_id}", status_code=204)
+async def delete_session(session_id: str, current_user: dict = Depends(get_current_user)):
+    service = get_chat_service()
+    session = await service.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if current_user.get("role") != "admin" and session.get("user_id") != current_user["_id"]:
+        raise HTTPException(status_code=403, detail="Not allowed to delete this session")
+
+    deleted = await service.delete_session(session_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return None
 
 
 @router.post("/sessions/{session_id}/messages", response_model=ChatResponse)

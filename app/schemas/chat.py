@@ -28,6 +28,10 @@ class SessionCreate(SessionBase):
     pass
 
 
+class SessionUpdate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=120)
+
+
 class Session(SessionBase):
     model_config = ConfigDict(populate_by_name=True)
 

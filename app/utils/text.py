@@ -66,6 +66,10 @@ def extract_keywords(text: str) -> list[str]:
         "field",
         "acre",
         "hectare",
+        "paddy",
+        "rice field",
+        "ricefield",
+        "nursery",
         # Water/irrigation
         "irrigation",
         "water",

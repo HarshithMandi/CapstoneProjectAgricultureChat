@@ -2,6 +2,7 @@ import importlib
 
 from app.langchain_components.retrievers import RetrieverService
 from app.main import app
+from app.utils.text import is_farming_related
 from fastapi.testclient import TestClient
 
 
@@ -109,3 +110,7 @@ def test_retriever_diversifies_sources():
     selected = service._diversify_by_source(docs, top_k=3)
 
     assert [doc.metadata["chunk_id"] for doc, _score in selected] == ["wiki-1", "fao-1", "wa-1"]
+
+
+def test_paddy_irrigation_is_farming_related():
+    assert is_farming_related("How often should I irrigate paddy at this stage?")
