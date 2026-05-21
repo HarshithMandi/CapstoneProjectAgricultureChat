@@ -17,8 +17,15 @@ def generate_chunk_id() -> str:
 
 
 def clean_text(text: str) -> str:
-    text = re.sub(r"\s+", " ", text)
+    text = (text or "")
+    # Normalize newlines but preserve paragraph boundaries.
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    # Collapse runs of spaces/tabs but keep newlines.
+    text = re.sub(r"[\t\f\v ]+", " ", text)
+    # Collapse too many blank lines.
     text = re.sub(r"\n{3,}", "\n\n", text)
+    # Trim per-line whitespace without joining lines.
+    text = "\n".join(line.strip() for line in text.split("\n"))
     return text.strip()
 
 

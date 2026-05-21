@@ -23,6 +23,12 @@ def add_documents(
     embeddings: OpenRouterEmbeddings | None = None,
 ) -> list[str]:
     vectorstore = get_vectorstore(embeddings)
+    ids = [
+        (d.metadata.get("chunk_id") or d.metadata.get("id"))
+        for d in documents
+    ]
+    if all(ids):
+        return vectorstore.add_documents(documents, ids=ids)  # type: ignore[arg-type]
     return vectorstore.add_documents(documents)
 
 
@@ -32,10 +38,20 @@ async def aadd_documents(
 ) -> list[str]:
     vectorstore = get_vectorstore(embeddings)
 
+    ids = [
+        (d.metadata.get("chunk_id") or d.metadata.get("id"))
+        for d in documents
+    ]
+    use_ids = all(ids)
+
     aadd = getattr(vectorstore, "aadd_documents", None)
     if callable(aadd):
+        if use_ids:
+            return await aadd(documents, ids=ids)  # type: ignore[arg-type]
         return await aadd(documents)
 
+    if use_ids:
+        return await asyncio.to_thread(vectorstore.add_documents, documents, ids)
     return await asyncio.to_thread(vectorstore.add_documents, documents)
 
 
@@ -43,23 +59,37 @@ def similarity_search(
     query: str,
     top_k: int = 5,
     embeddings: OpenRouterEmbeddings | None = None,
+    where: dict | None = None,
 ) -> list[tuple[Document, float]]:
     vectorstore = get_vectorstore(embeddings)
-    return vectorstore.similarity_search_with_score(query, k=top_k)
+    try:
+        return vectorstore.similarity_search_with_score(query, k=top_k, filter=where)
+    except TypeError:
+        return vectorstore.similarity_search_with_score(query, k=top_k)
 
 
 async def asimilarity_search(
     query: str,
     top_k: int = 5,
     embeddings: OpenRouterEmbeddings | None = None,
+    where: dict | None = None,
 ) -> list[tuple[Document, float]]:
     vectorstore = get_vectorstore(embeddings)
 
     asearch = getattr(vectorstore, "asimilarity_search_with_score", None)
     if callable(asearch):
-        return await asearch(query, k=top_k)
+        try:
+            return await asearch(query, k=top_k, filter=where)
+        except TypeError:
+            return await asearch(query, k=top_k)
 
-    return await asyncio.to_thread(vectorstore.similarity_search_with_score, query, k=top_k)
+    def _run():
+        try:
+            return vectorstore.similarity_search_with_score(query, k=top_k, filter=where)
+        except TypeError:
+            return vectorstore.similarity_search_with_score(query, k=top_k)
+
+    return await asyncio.to_thread(_run)
 
 
 def get_retriever(embeddings: OpenRouterEmbeddings | None = None, top_k: int = 5):

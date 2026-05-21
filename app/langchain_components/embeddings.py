@@ -38,24 +38,65 @@ class OpenRouterEmbeddings(Embeddings):
             )
         return self._sync_client
 
+    def _parse_embeddings_response(self, response: httpx.Response) -> list[list[float]]:
+        """Parse OpenRouter /embeddings response.
+
+        OpenRouter generally returns {"data": [{"embedding": [...]}, ...]}.
+        Some error cases may still be JSON but not include `data`.
+        """
+
+        try:
+            data = response.json()
+        except Exception:
+            raise RuntimeError(
+                f"OpenRouter embeddings returned non-JSON (status={response.status_code}): {response.text[:500]}"
+            )
+
+        if not isinstance(data, dict) or "data" not in data:
+            raise RuntimeError(
+                f"OpenRouter embeddings returned unexpected payload (status={response.status_code}): {str(data)[:800]}"
+            )
+
+        items = data.get("data") or []
+        embeddings: list[list[float]] = []
+        for item in items:
+            if isinstance(item, dict) and "embedding" in item:
+                embeddings.append(item["embedding"])
+
+        if len(embeddings) != len(items):
+            raise RuntimeError(
+                f"OpenRouter embeddings payload missing embeddings for some items (status={response.status_code})."
+            )
+        return embeddings
+
+    def _batched(self, texts: list[str]) -> list[list[str]]:
+        batch_size = int(getattr(settings, "EMBEDDINGS_BATCH_SIZE", 64))
+        if batch_size <= 0:
+            batch_size = 64
+        return [texts[i : i + batch_size] for i in range(0, len(texts), batch_size)]
+
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         client = self._get_sync_client()
-        response = client.post(
-            "/embeddings",
-            json={"model": self.model, "input": texts},
-        )
-        response.raise_for_status()
-        data = response.json()
-        return [item["embedding"] for item in data["data"]]
+        all_embeddings: list[list[float]] = []
+        for batch in self._batched(list(texts)):
+            response = client.post(
+                "/embeddings",
+                json={"model": self.model, "input": batch},
+            )
+            response.raise_for_status()
+            all_embeddings.extend(self._parse_embeddings_response(response))
+        return all_embeddings
 
     async def aembed_documents(self, texts: List[str]) -> List[List[float]]:
-        response = await self._async_client.post(
-            "/embeddings",
-            json={"model": self.model, "input": texts},
-        )
-        response.raise_for_status()
-        data = response.json()
-        return [item["embedding"] for item in data["data"]]
+        all_embeddings: list[list[float]] = []
+        for batch in self._batched(list(texts)):
+            response = await self._async_client.post(
+                "/embeddings",
+                json={"model": self.model, "input": batch},
+            )
+            response.raise_for_status()
+            all_embeddings.extend(self._parse_embeddings_response(response))
+        return all_embeddings
 
     def embed_query(self, text: str) -> List[float]:
         client = self._get_sync_client()
@@ -65,6 +106,10 @@ class OpenRouterEmbeddings(Embeddings):
         )
         response.raise_for_status()
         data = response.json()
+        if not isinstance(data, dict) or "data" not in data or not data.get("data"):
+            raise RuntimeError(
+                f"OpenRouter embeddings returned unexpected payload (status={response.status_code}): {str(data)[:800]}"
+            )
         return data["data"][0]["embedding"]
 
     async def aembed_query(self, text: str) -> List[float]:
@@ -74,6 +119,10 @@ class OpenRouterEmbeddings(Embeddings):
         )
         response.raise_for_status()
         data = response.json()
+        if not isinstance(data, dict) or "data" not in data or not data.get("data"):
+            raise RuntimeError(
+                f"OpenRouter embeddings returned unexpected payload (status={response.status_code}): {str(data)[:800]}"
+            )
         return data["data"][0]["embedding"]
 
     async def close(self):

@@ -87,6 +87,8 @@ pybase64==1.4.3
 pydantic-core==2.46.4
 pydantic-settings==2.14.1
 pydantic==2.13.4
+pypdf==5.6.0
+pyspark==3.5.7
 pygments==2.20.0
 pymongo==4.17.0
 pypika==0.51.1

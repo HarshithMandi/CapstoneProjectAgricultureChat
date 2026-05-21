@@ -28,10 +28,12 @@ class IngestService:
             document_type="webpage",
         )
 
-        chunks = self.chunking.chunk_text(processed_text, metadata)
+        chunks = self.chunking.chunk_text_multigranular(processed_text, metadata)
+        doc_id = (chunks[0].metadata.get("doc_id") if chunks else None) or ""
         chunk_ids = await self.embedding.embed_and_store(chunks)
 
         doc_record = {
+            "doc_id": doc_id,
             "url": url,
             "title": title,
             "topic": topic or metadata["topic"],
@@ -40,7 +42,7 @@ class IngestService:
         }
         await self.doc_repo.create(doc_record)
 
-        return {"document_ids": [metadata["doc_id"]], "chunks_created": len(chunk_ids)}
+        return {"document_ids": [doc_id], "chunks_created": len(chunk_ids)}
 
     async def ingest_text(
         self,
@@ -49,19 +51,31 @@ class IngestService:
         source: str = "manual",
         topic: str = "general",
         document_type: str = "text",
+        preprocessed: bool = False,
     ) -> dict:
-        processed_text, metadata = self.processing.process_text(
-            text,
-            source=source,
-            title=title,
-            topic=topic,
-            document_type=document_type,
-        )
+        if preprocessed:
+            processed_text = text
+            _, metadata = self.processing.process_text(
+                "",
+                source=source,
+                title=title,
+                topic=topic,
+                document_type=document_type,
+            )
+        else:
+            processed_text, metadata = self.processing.process_text(
+                text,
+                source=source,
+                title=title,
+                topic=topic,
+                document_type=document_type,
+            )
 
-        chunks = self.chunking.chunk_text(processed_text, metadata)
+        chunks = self.chunking.chunk_text_multigranular(processed_text, metadata)
+        doc_id = (chunks[0].metadata.get("doc_id") if chunks else None) or ""
         chunk_ids = await self.embedding.embed_and_store(chunks)
 
-        return {"document_ids": [metadata["doc_id"]], "chunks_created": len(chunk_ids)}
+        return {"document_ids": [doc_id], "chunks_created": len(chunk_ids)}
 
     async def ingest_urls(self, urls: list[str], topic: str | None = None) -> dict:
         results = []

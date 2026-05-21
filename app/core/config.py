@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     LLM_MODEL: str = Field(default="openai/gpt-oss-120b:free", description="LLM model identifier")
     EMBEDDING_MODEL: str = Field(default="nvidia/llama-nemotron-embed-vl-1b-v2:free", description="Embedding model identifier")
 
+    EMBEDDINGS_BATCH_SIZE: int = Field(default=64, description="Max texts per embeddings API call")
+
     LOG_LEVEL: str = Field(default="INFO", description="Logging level")
 
 
