@@ -23,8 +23,8 @@ class ChatService:
         self.message_repo = MessageRepository()
         self.greeting_message = "Hi! Do you have any agriculture-related questions you'd like help with?"
 
-    async def create_session(self, title: str | None = None) -> dict:
-        session = await self.session_repo.create(title)
+    async def create_session(self, title: str | None = None, user_id: str | None = None) -> dict:
+        session = await self.session_repo.create(title, user_id=user_id)
         await self.message_repo.create(session["_id"], "assistant", self.greeting_message)
         return session
 

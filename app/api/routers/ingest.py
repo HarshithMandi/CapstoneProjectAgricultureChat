@@ -1,5 +1,5 @@
-from fastapi import APIRouter, HTTPException
-from app.api.deps import get_chat_service
+from fastapi import APIRouter, Depends
+from app.api.deps import require_admin
 from app.schemas.ingest import URLIngestRequest, URLsIngestRequest, TextIngestRequest, IngestResponse
 from app.services.ingest_service import IngestService
 
@@ -7,7 +7,7 @@ router = APIRouter(prefix="/ingest", tags=["ingest"])
 
 
 @router.post("/url", response_model=IngestResponse)
-async def ingest_url(request: URLIngestRequest):
+async def ingest_url(request: URLIngestRequest, _admin: dict = Depends(require_admin)):
     service = IngestService()
     try:
         result = await service.ingest_url(
@@ -21,7 +21,7 @@ async def ingest_url(request: URLIngestRequest):
 
 
 @router.post("/urls", response_model=IngestResponse)
-async def ingest_urls(request: URLsIngestRequest):
+async def ingest_urls(request: URLsIngestRequest, _admin: dict = Depends(require_admin)):
     service = IngestService()
     try:
         result = await service.ingest_urls(
@@ -34,7 +34,7 @@ async def ingest_urls(request: URLsIngestRequest):
 
 
 @router.post("/text", response_model=IngestResponse)
-async def ingest_text(request: TextIngestRequest):
+async def ingest_text(request: TextIngestRequest, _admin: dict = Depends(require_admin)):
     service = IngestService()
     try:
         result = await service.ingest_text(

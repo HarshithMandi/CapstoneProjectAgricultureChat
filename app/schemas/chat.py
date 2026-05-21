@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class MessageBase(BaseModel):
@@ -13,12 +13,11 @@ class MessageCreate(MessageBase):
 
 
 class Message(MessageBase):
+    model_config = ConfigDict(populate_by_name=True)
+
     id: str = Field(..., alias="_id")
     session_id: str
     timestamp: datetime = Field(default_factory=datetime.utcnow)
-
-    class Config:
-        populate_by_name = True
 
 
 class SessionBase(BaseModel):
@@ -30,14 +29,14 @@ class SessionCreate(SessionBase):
 
 
 class Session(SessionBase):
+    model_config = ConfigDict(populate_by_name=True)
+
     id: str = Field(..., alias="_id")
+    user_id: str | None = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     memory: dict[str, Any] = Field(default_factory=dict)
     messages: list[Message] = Field(default_factory=list)
-
-    class Config:
-        populate_by_name = True
 
 
 class ChatRequest(BaseModel):

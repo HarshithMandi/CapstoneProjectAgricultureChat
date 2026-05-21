@@ -32,3 +32,7 @@ def get_messages_collection():
 
 def get_documents_collection():
     return get_db()["documents"]
+
+
+def get_users_collection():
+    return get_db()["users"]

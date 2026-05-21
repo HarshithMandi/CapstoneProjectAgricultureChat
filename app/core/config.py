@@ -11,6 +11,10 @@ class Settings(BaseSettings):
     CHROMA_PERSIST_DIR: str = Field(default="./chroma_db", description="ChromaDB persistence directory")
     CHROMA_COLLECTION_NAME: str = Field(default="agri_documents", description="ChromaDB collection name")
 
+    JWT_SECRET_KEY: str = Field(default="change-me-in-production", description="Secret key used to sign JWTs")
+    JWT_ALGORITHM: str = Field(default="HS256", description="JWT signing algorithm")
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=1440, description="Access token lifetime in minutes")
+
     LLM_MODEL: str = Field(default="openai/gpt-oss-120b:free", description="LLM model identifier")
     EMBEDDING_MODEL: str = Field(default="nvidia/llama-nemotron-embed-vl-1b-v2:free", description="Embedding model identifier")
 

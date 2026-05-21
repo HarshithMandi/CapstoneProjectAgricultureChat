@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from app.api.routers import health_router, chat_router, ingest_router, retrieval_router
+from app.api.routers import auth_router, health_router, chat_router, ingest_router, retrieval_router
 from app.api.deps import close_chat_service
 from app.db.mongo import close_mongo_client
 from app.core.logging import setup_logging
@@ -23,6 +23,7 @@ app = FastAPI(
 )
 
 app.include_router(health_router)
+app.include_router(auth_router)
 app.include_router(chat_router)
 app.include_router(ingest_router)
 app.include_router(retrieval_router)
