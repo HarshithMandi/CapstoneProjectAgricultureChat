@@ -75,7 +75,65 @@ class IngestService:
         doc_id = (chunks[0].metadata.get("doc_id") if chunks else None) or ""
         chunk_ids = await self.embedding.embed_and_store(chunks)
 
+        doc_record = {
+            "doc_id": doc_id,
+            "title": title,
+            "topic": topic,
+            "chunk_ids": chunk_ids,
+            "status": "ingested",
+            "source": source,
+            "document_type": document_type,
+        }
+        await self.doc_repo.create(doc_record)
+
         return {"document_ids": [doc_id], "chunks_created": len(chunk_ids)}
+
+    async def ingest_pdf_bytes(
+        self,
+        pdf_bytes: bytes,
+        filename: str,
+        topic: str = "general",
+        session_id: str | None = None,
+        title: str | None = None,
+    ) -> dict:
+        extracted = self.scraping.extract_pdf_text(pdf_bytes, source=filename)
+        text = extracted.get("content") or ""
+        title = title or extracted.get("title") or filename.rsplit(".", 1)[0]
+
+        processed_text, metadata = self.processing.process_text(
+            text,
+            source=f"upload:{filename}",
+            title=title,
+            url="",
+            topic=topic,
+            document_type="pdf",
+            session_id=session_id,
+            upload_filename=filename,
+        )
+
+        chunks = self.chunking.chunk_text_multigranular(processed_text, metadata)
+        doc_id = (chunks[0].metadata.get("doc_id") if chunks else None) or ""
+        chunk_ids = await self.embedding.embed_and_store(chunks)
+
+        doc_record = {
+            "doc_id": doc_id,
+            "title": title,
+            "topic": topic,
+            "chunk_ids": chunk_ids,
+            "status": "ingested",
+            "source": f"upload:{filename}",
+            "document_type": "pdf",
+            "session_id": session_id,
+            "upload_filename": filename,
+        }
+        await self.doc_repo.create(doc_record)
+
+        return {
+            "document_ids": [doc_id],
+            "chunks_created": len(chunk_ids),
+            "filename": filename,
+            "title": title,
+        }
 
     async def ingest_urls(self, urls: list[str], topic: str | None = None) -> dict:
         results = []

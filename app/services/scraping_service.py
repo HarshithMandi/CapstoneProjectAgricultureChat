@@ -1,11 +1,14 @@
 import httpx
 import trafilatura
 import io
+import logging
 
 from bs4 import BeautifulSoup
 from readability import Document as ReadabilityDocument
 from app.core.config import settings
 from app.core.exceptions import IngestionError
+
+logger = logging.getLogger(__name__)
 
 
 class ScrapingService:
@@ -64,23 +67,44 @@ class ScrapingService:
     def _extract_from_pdf(self, pdf_bytes: bytes, source: str) -> dict:
         try:
             import importlib
-
             pypdf = importlib.import_module("pypdf")
             PdfReader = getattr(pypdf, "PdfReader")
 
-            reader = PdfReader(io.BytesIO(pdf_bytes))
+            # Try normal read first, then fallback to a more permissive mode
+            try:
+                reader = PdfReader(io.BytesIO(pdf_bytes))
+            except Exception as e:
+                logger.debug("PdfReader initial parse failed, retrying with strict=False: %s", e)
+                try:
+                    # some pypdf versions accept strict=False to be more tolerant
+                    reader = PdfReader(io.BytesIO(pdf_bytes), strict=False)  # type: ignore[arg-type]
+                except Exception as e2:
+                    logger.exception("Unable to parse PDF bytes from %s", source)
+                    raise IngestionError(f"Failed to extract PDF text from {source}: {str(e2)}")
+
             parts: list[str] = []
-            for page in reader.pages:
-                page_text = page.extract_text() or ""
+            for page in getattr(reader, "pages", []) or []:
+                try:
+                    page_text = (page.extract_text() or "")
+                except Exception:
+                    # Best-effort: skip pages that fail to extract
+                    logger.debug("Failed extracting text from a PDF page in %s", source)
+                    page_text = ""
                 if page_text.strip():
                     parts.append(page_text)
+
+            content = "\n\n".join(parts).strip()
             return {
-                "content": "\n\n".join(parts).strip(),
+                "content": content,
                 "title": "",
                 "source": source,
             }
         except Exception as e:
+            logger.exception("PDF extraction failed for %s", source)
             raise IngestionError(f"Failed to extract PDF text from {source}: {str(e)}")
+
+    def extract_pdf_text(self, pdf_bytes: bytes, source: str) -> dict:
+        return self._extract_from_pdf(pdf_bytes, source=source)
 
     async def _validate_url(self, url: str) -> None:
         if not url.startswith(("http://", "https://")):

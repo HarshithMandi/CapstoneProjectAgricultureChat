@@ -17,6 +17,7 @@ import {
   Trash2,
   UserCog,
   Users,
+  Upload,
   X,
 } from "lucide-react";
 import "./styles.css";
@@ -58,6 +59,26 @@ async function request(endpoint, { method = "GET", body, token, signal } = {}) {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
+    signal,
+  });
+
+  const text = await response.text();
+  const data = text ? JSON.parse(text) : null;
+  if (!response.ok) {
+    const detail = data?.detail || response.statusText;
+    throw new Error(Array.isArray(detail) ? detail.map((item) => item.msg).join(", ") : detail);
+  }
+  return data;
+}
+
+async function requestMultipart(endpoint, { method = "POST", formData, token, signal } = {}) {
+  const headers = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const response = await fetch(`${API_URL}${endpoint}`, {
+    method,
+    headers,
+    body: formData,
     signal,
   });
 
@@ -496,8 +517,12 @@ function ChatPage({ token, activeSessionId, onSessionChanged }) {
   const [messages, setMessages] = useState([{ role: "assistant", content: GREETING }]);
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState(null);
+  const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState("");
   const sendingRef = useRef(false);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -533,6 +558,7 @@ function ChatPage({ token, activeSessionId, onSessionChanged }) {
     setSessionId(null);
     setMessages([{ role: "assistant", content: GREETING }]);
     setError("");
+    setUploadStatus(null);
     onSessionChanged(null);
   }
 
@@ -542,6 +568,68 @@ function ChatPage({ token, activeSessionId, onSessionChanged }) {
     const id = session.id || session._id;
     setSessionId(id);
     return id;
+  }
+
+  async function uploadPdfFiles(files) {
+    const pdfFiles = Array.from(files || []).filter((file) => {
+      const name = (file?.name || "").toLowerCase();
+      const type = (file?.type || "").toLowerCase();
+      return type === "application/pdf" || name.endsWith(".pdf");
+    });
+
+    if (!pdfFiles.length) {
+      setUploadStatus({ type: "error", message: "Please upload PDF files only." });
+      return;
+    }
+
+    setUploading(true);
+    setDragActive(false);
+    setUploadStatus(null);
+    setError("");
+
+    try {
+      const currentSessionId = await ensureSession();
+      let uploadedCount = 0;
+      let chunkCount = 0;
+
+      for (const file of pdfFiles) {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("title", file.name.replace(/\.pdf$/i, ""));
+
+        const result = await requestMultipart(`/chat/sessions/${currentSessionId}/attachments/pdf`, {
+          token,
+          formData,
+        });
+
+        uploadedCount += 1;
+        chunkCount += Number(result.chunks_created || 0);
+      }
+
+      setUploadStatus({
+        type: "success",
+        message: `Uploaded ${uploadedCount} PDF${uploadedCount === 1 ? "" : "s"} and added ${chunkCount} chunk${chunkCount === 1 ? "" : "s"} to this chat.`,
+      });
+      onSessionChanged(currentSessionId);
+    } catch (err) {
+      setUploadStatus({ type: "error", message: err.message });
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  function openFilePicker() {
+    fileInputRef.current?.click();
+  }
+
+  function handleDrop(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    setDragActive(false);
+    if (event.dataTransfer.files?.length) {
+      uploadPdfFiles(event.dataTransfer.files);
+    }
   }
 
   async function sendMessage(event) {
@@ -586,10 +674,47 @@ function ChatPage({ token, activeSessionId, onSessionChanged }) {
         ))}
       </div>
       {error && <div className="error">{error}</div>}
-      <form className="chat-input-row" onSubmit={sendMessage}>
-        <input value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Ask about crops, diseases, fertilizers..." />
-        <button className="primary-button" disabled={loading}>{loading ? "Sending..." : "Send"}</button>
-      </form>
+      {uploadStatus && <div className={uploadStatus.type}>{uploadStatus.message}</div>}
+      <div
+        className={`chat-composer ${dragActive ? "drag-active" : ""}`}
+        onDragEnter={(event) => {
+          event.preventDefault();
+          setDragActive(true);
+        }}
+        onDragOver={(event) => {
+          event.preventDefault();
+          setDragActive(true);
+        }}
+        onDragLeave={(event) => {
+          event.preventDefault();
+          setDragActive(false);
+        }}
+        onDrop={handleDrop}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/pdf,.pdf"
+          multiple
+          className="hidden-file-input"
+          onChange={(event) => uploadPdfFiles(event.target.files)}
+        />
+        <div className="chat-dropzone" onClick={openFilePicker} role="button" tabIndex={0}>
+          <Upload size={18} />
+          <div>
+            <strong>Upload PDF reports</strong>
+            <span>Drop soil analysis reports or browse files to add them to this chat’s RAG context.</span>
+          </div>
+          <span className="dropzone-action">Browse</span>
+        </div>
+        <form className="chat-input-row" onSubmit={sendMessage}>
+          <input value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder="Ask about crops, diseases, fertilizers..." />
+          <button type="button" className="secondary-button upload-button" onClick={openFilePicker} disabled={uploading}>
+            {uploading ? "Uploading..." : "Upload PDF"}
+          </button>
+          <button className="primary-button" disabled={loading || uploading}>{loading ? "Sending..." : "Send"}</button>
+        </form>
+      </div>
     </section>
   );
 }

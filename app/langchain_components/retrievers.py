@@ -28,12 +28,12 @@ class RetrieverService:
         results = []
         candidate_k = max(top_k * 6, 20)
         # Prefer semantic overlap chunks by default (best general signal).
-        docs_with_scores = await self._asearch(query, candidate_k, where={"chunk_type": "semantic"})
+        docs_with_scores = await self._asearch(query, candidate_k, where={"chunk_type": "semantic", **(where or {})})
         selected = self._diversify_by_source(docs_with_scores, top_k)
 
         if len(selected) < top_k:
             # Fallback to any chunk type to fill remaining slots.
-            extra = await self._asearch(query, candidate_k)
+            extra = await self._asearch(query, candidate_k, where=where)
             seen_ids = {d.metadata.get("chunk_id") for d, _s in selected}
             combined = list(selected)
             for doc, score in extra:

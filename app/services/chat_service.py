@@ -79,6 +79,7 @@ class ChatService:
     def __init__(self, embeddings: OpenRouterEmbeddings | None = None):
         self.embeddings = embeddings or OpenRouterEmbeddings()
         self.retrieval = RetrievalService(self.embeddings)
+        self.ingest = IngestService()
         self.llm = LLMService()
         self.memory = MemoryService()
         self.session_repo = SessionRepository()
@@ -109,6 +110,20 @@ class ChatService:
             title = message.strip().replace("\n", " ")[:60] or None
         await self.session_repo.touch(session_id, title=title)
 
+    async def _search_context(self, session_id: str, message: str) -> list[dict[str, Any]]:
+        global_results = await self.retrieval.search(message, top_k=5)
+        session_results = await self.retrieval.search(message, top_k=5, where={"session_id": session_id})
+
+        merged: dict[str, dict[str, Any]] = {}
+        for result in [*session_results, *global_results]:
+            metadata = result.get("metadata") or {}
+            key = metadata.get("chunk_id") or metadata.get("doc_id") or result.get("content", "")[:80]
+            if key not in merged or result.get("similarity", 1e9) < merged[key].get("similarity", 1e9):
+                merged[key] = result
+
+        ordered = sorted(merged.values(), key=lambda item: item.get("similarity") if item.get("similarity") is not None else 1e9)
+        return ordered[:5]
+
     async def send_message(self, session_id: str, message: str) -> dict:
         await self.message_repo.create(session_id, "user", message)
         await self._touch_session_for_message(session_id, message)
@@ -121,7 +136,7 @@ class ChatService:
             return {"message": refusal, "sources": [], "session_id": session_id}
 
         try:
-            results = await self.retrieval.search(message, top_k=5)
+            results = await self._search_context(session_id, message)
         except Exception:
             logger.exception("Retrieval failed; continuing without RAG context")
             results = []
@@ -159,7 +174,7 @@ class ChatService:
             return
 
         try:
-            results = await self.retrieval.search(message, top_k=5)
+            results = await self._search_context(session_id, message)
         except Exception:
             logger.exception("Retrieval failed; continuing without RAG context")
             results = []
@@ -183,5 +198,6 @@ class ChatService:
         yield {"type": "done"}
 
     async def close(self):
+        await self.ingest.close()
         await self.embeddings.close()
         await self.llm.close()

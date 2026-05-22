@@ -16,14 +16,22 @@ class LLMService:
         self.api_key = api_key or settings.OPENROUTER_API_KEY
         self.model = model or settings.LLM_MODEL
         self.base_url = base_url.rstrip("/")
+        headers = {
+            "Content-Type": "application/json",
+        }
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
         self.client = httpx.AsyncClient(
             base_url=self.base_url,
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            },
+            headers=headers,
             timeout=httpx.Timeout(connect=10.0, read=60.0, write=30.0, pool=30.0),
         )
+
+    def _ensure_api_key(self) -> None:
+        if not self.api_key:
+            raise LLMError(
+                "OpenRouter API key is not configured. Set OPENROUTER_API_KEY in your environment or .env file."
+            )
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
     async def generate(
@@ -39,6 +47,7 @@ class LLMService:
         messages.append({"role": "user", "content": prompt})
 
         try:
+            self._ensure_api_key()
             response = await self.client.post(
                 "/chat/completions",
                 json={
@@ -67,6 +76,7 @@ class LLMService:
         messages.append({"role": "user", "content": prompt})
 
         try:
+            self._ensure_api_key()
             stream_timeout = httpx.Timeout(connect=10.0, read=None, write=30.0, pool=30.0)
             async with self.client.stream(
                 "POST",

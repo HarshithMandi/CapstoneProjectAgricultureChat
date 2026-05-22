@@ -5,7 +5,8 @@ from pydantic import Field
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
-    OPENROUTER_API_KEY: str = Field(..., description="OpenRouter API key")
+    # Keep startup resilient: the API key is validated at call time by the LLM/embedding services.
+    OPENROUTER_API_KEY: str = Field(default="", description="OpenRouter API key")
     MONGODB_URI: str = Field(default="mongodb://localhost:27017", description="MongoDB connection URI")
     MONGODB_DB: str = Field(default="agri_rag_chatbot", description="MongoDB database name")
     CHROMA_PERSIST_DIR: str = Field(default="./chroma_db", description="ChromaDB persistence directory")

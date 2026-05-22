@@ -17,24 +17,34 @@ class OpenRouterEmbeddings(Embeddings):
         self.api_key = api_key or settings.OPENROUTER_API_KEY
         self.model = model or settings.EMBEDDING_MODEL
         self.base_url = base_url.rstrip("/")
+        headers = {
+            "Content-Type": "application/json",
+        }
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
         self._async_client = httpx.AsyncClient(
             base_url=self.base_url,
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            },
+            headers=headers,
         )
 
         self._sync_client: Optional[httpx.Client] = None
 
+    def _ensure_api_key(self) -> None:
+        if not self.api_key:
+            raise RuntimeError(
+                "OpenRouter API key is not configured. Set OPENROUTER_API_KEY in your environment or .env file."
+            )
+
     def _get_sync_client(self) -> httpx.Client:
         if self._sync_client is None:
+            headers = {
+                "Content-Type": "application/json",
+            }
+            if self.api_key:
+                headers["Authorization"] = f"Bearer {self.api_key}"
             self._sync_client = httpx.Client(
                 base_url=self.base_url,
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                },
+                headers=headers,
             )
         return self._sync_client
 
@@ -76,6 +86,7 @@ class OpenRouterEmbeddings(Embeddings):
         return [texts[i : i + batch_size] for i in range(0, len(texts), batch_size)]
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        self._ensure_api_key()
         client = self._get_sync_client()
         all_embeddings: list[list[float]] = []
         for batch in self._batched(list(texts)):
@@ -88,6 +99,7 @@ class OpenRouterEmbeddings(Embeddings):
         return all_embeddings
 
     async def aembed_documents(self, texts: List[str]) -> List[List[float]]:
+        self._ensure_api_key()
         all_embeddings: list[list[float]] = []
         for batch in self._batched(list(texts)):
             response = await self._async_client.post(
@@ -99,6 +111,7 @@ class OpenRouterEmbeddings(Embeddings):
         return all_embeddings
 
     def embed_query(self, text: str) -> List[float]:
+        self._ensure_api_key()
         client = self._get_sync_client()
         response = client.post(
             "/embeddings",
@@ -113,6 +126,7 @@ class OpenRouterEmbeddings(Embeddings):
         return data["data"][0]["embedding"]
 
     async def aembed_query(self, text: str) -> List[float]:
+        self._ensure_api_key()
         response = await self._async_client.post(
             "/embeddings",
             json={"model": self.model, "input": [text]},

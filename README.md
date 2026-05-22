@@ -23,6 +23,15 @@ The Agri RAG Chatbot is designed to answer questions related to agriculture, far
 uv sync
 ```
 
+If you're not using `uv`, you can also use the included virtual environment:
+```bash
+cd agri-rag-chatbot
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Note: This repo also includes a `venv` symlink to `.venv`, so `source venv/bin/activate` works too.
+
 2. Create `.env` file from `.env.example`:
 ```bash
 cp .env.example .env
@@ -35,6 +44,11 @@ cp .env.example .env
 5. Start the server:
 ```bash
 uv run uvicorn app.main:app --reload
+```
+
+Alternative (works even when `uvicorn` isn't on your PATH):
+```bash
+python3 scripts/run_api.py
 ```
 
 6. Start the React frontend:

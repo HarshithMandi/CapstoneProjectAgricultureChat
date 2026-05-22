@@ -550,8 +550,79 @@ label {
 .chat-input-row,
 .search-row {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr auto auto;
   gap: 10px;
+}
+
+.chat-composer {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #d8e0d4;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #ffffff, #f8fbf5);
+}
+
+.chat-composer.drag-active {
+  border-color: #255f3f;
+  box-shadow: 0 0 0 3px rgba(37, 95, 63, 0.12);
+}
+
+.hidden-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.chat-dropzone {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border: 1px dashed #bcd0b6;
+  border-radius: 8px;
+  background: #f2f8ed;
+  color: #2c3f31;
+  cursor: pointer;
+}
+
+.chat-dropzone strong,
+.chat-dropzone span {
+  display: block;
+}
+
+.chat-dropzone strong {
+  margin-bottom: 2px;
+}
+
+.chat-dropzone span {
+  color: #60705f;
+  font-size: 14px;
+}
+
+.dropzone-action {
+  align-self: center;
+  justify-self: end;
+  border: 1px solid #cbd9c6;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #225b35;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 8px 12px;
+}
+
+.secondary-button {
+  background: #ffffff;
+  border-color: #c9d4c4;
+  color: #244d36;
+}
+
+.upload-button {
+  white-space: nowrap;
 }
 
 .search-row {
@@ -647,5 +718,14 @@ label {
 
   .chat-input-row {
     grid-template-columns: 1fr;
+  }
+
+  .chat-dropzone {
+    grid-template-columns: 1fr;
+    justify-items: start;
+  }
+
+  .dropzone-action {
+    justify-self: start;
   }
 }

@@ -1,11 +1,13 @@
 import json
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form
 from fastapi.responses import StreamingResponse
 from app.api.deps import get_chat_service, get_current_user
 from app.schemas.chat import ChatRequest, ChatResponse, SessionCreate, Session, SessionUpdate
+import logging
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+logger = logging.getLogger(__name__)
 
 
 @router.post("/sessions", response_model=Session)
@@ -109,3 +111,43 @@ async def send_message_stream(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.post("/sessions/{session_id}/attachments/pdf")
+async def upload_pdf_attachment(
+    session_id: str,
+    file: UploadFile = File(...),
+    title: str | None = Form(None),
+    current_user: dict = Depends(get_current_user),
+):
+    service = get_chat_service()
+    session = await service.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if current_user.get("role") != "admin" and session.get("user_id") != current_user["_id"]:
+        raise HTTPException(status_code=403, detail="Not allowed to access this session")
+
+    filename = file.filename or "uploaded.pdf"
+    if not filename.lower().endswith(".pdf") and (file.content_type or "").lower() != "application/pdf":
+        raise HTTPException(status_code=400, detail="Only PDF files are supported")
+
+    pdf_bytes = await file.read()
+    if not pdf_bytes:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty")
+    ingest = service.ingest
+    try:
+        result = await ingest.ingest_pdf_bytes(
+            pdf_bytes=pdf_bytes,
+            filename=filename,
+            topic=(session.get("memory") or {}).get("topic") or "general",
+            session_id=session_id,
+            title=title,
+        )
+    except Exception as e:
+        logger.exception("PDF upload/ingest failed for session %s file %s", session_id, filename)
+        raise HTTPException(status_code=500, detail=f"PDF ingestion failed: {str(e)}")
+
+    return {
+        **result,
+        "session_id": session_id,
+    }
