@@ -4,6 +4,7 @@ from app.services.chunking_service import ChunkingService
 from app.services.embedding_service import EmbeddingService
 from app.db.repositories.document import DocumentRepository
 from app.langchain_components.documents import create_document
+from app.core.exceptions import IngestionError
 
 
 class IngestService:
@@ -99,6 +100,12 @@ class IngestService:
         extracted = self.scraping.extract_pdf_text(pdf_bytes, source=filename)
         text = extracted.get("content") or ""
         title = title or extracted.get("title") or filename.rsplit(".", 1)[0]
+
+        if not text.strip():
+            raise IngestionError(
+                "No readable text could be extracted from the uploaded PDF.",
+                details={"filename": filename},
+            )
 
         processed_text, metadata = self.processing.process_text(
             text,

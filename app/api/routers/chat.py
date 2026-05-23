@@ -5,6 +5,7 @@ from fastapi.responses import StreamingResponse
 from app.api.deps import get_chat_service, get_current_user
 from app.schemas.chat import ChatRequest, ChatResponse, SessionCreate, Session, SessionUpdate
 import logging
+from app.core.exceptions import IngestionError
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 logger = logging.getLogger(__name__)
@@ -143,6 +144,14 @@ async def upload_pdf_attachment(
             session_id=session_id,
             title=title,
         )
+    except IngestionError as e:
+        logger.warning(
+            "PDF upload rejected for session %s file %s: %s",
+            session_id,
+            filename,
+            getattr(e, "message", str(e)),
+        )
+        raise HTTPException(status_code=400, detail=getattr(e, "message", str(e)))
     except Exception as e:
         logger.exception("PDF upload/ingest failed for session %s file %s", session_id, filename)
         raise HTTPException(status_code=500, detail=f"PDF ingestion failed: {str(e)}")

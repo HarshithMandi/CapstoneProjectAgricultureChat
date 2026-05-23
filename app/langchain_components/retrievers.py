@@ -24,7 +24,7 @@ class RetrieverService:
             self._retriever = get_retriever(self.embeddings)
         return self._retriever
 
-    async def search(self, query: str, top_k: int = 5) -> list[dict[str, Any]]:
+    async def search(self, query: str, top_k: int = 5, where: dict | None = None) -> list[dict[str, Any]]:
         results = []
         candidate_k = max(top_k * 6, 20)
         # Prefer semantic overlap chunks by default (best general signal).

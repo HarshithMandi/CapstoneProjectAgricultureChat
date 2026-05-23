@@ -189,6 +189,39 @@ def is_farming_related(text: str, session_memory: dict[str, Any] | None = None) 
     if keywords:
         return True
 
+    # Allow meta-requests that are about the current conversation / uploaded report.
+    # This keeps agriculture guardrails strict while still supporting common UX like
+    # "summarize this" after discussing a farming topic.
+    lower = text.lower()
+    meta_intents = [
+        "summarize",
+        "summary",
+        "recap",
+        "tl;dr",
+        "tldr",
+        "paraphrase",
+        "rewrite",
+        "simplify",
+        "explain this",
+        "explain the above",
+    ]
+    meta_targets = [
+        "this",
+        "above",
+        "the above",
+        "our chat",
+        "this chat",
+        "conversation",
+        "messages",
+        "report",
+        "pdf",
+        "soil report",
+        "analysis report",
+    ]
+    if any(intent in lower for intent in meta_intents) and any(target in lower for target in meta_targets):
+        if session_memory and (session_memory.get("crop") or session_memory.get("location") or session_memory.get("topic")):
+            return True
+
     # If the user already discussed a crop/location in this session, allow short follow-ups
     # that are typical in farming conversations (but still keep it strict).
     if session_memory and (session_memory.get("crop") or session_memory.get("location")):
@@ -207,7 +240,6 @@ def is_farming_related(text: str, session_memory: dict[str, Any] | None = None) 
             "symptom",
             "treatment",
         ]
-        lower = text.lower()
         if len(lower) <= 120 and any(cue in lower for cue in followup_cues):
             return True
 

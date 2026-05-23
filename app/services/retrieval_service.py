@@ -6,8 +6,8 @@ class RetrievalService:
     def __init__(self, embeddings: OpenRouterEmbeddings | None = None):
         self.retriever = RetrieverService(embeddings)
 
-    async def search(self, query: str, top_k: int = 5):
-        return await self.retriever.search(query, top_k)
+    async def search(self, query: str, top_k: int = 5, where: dict | None = None):
+        return await self.retriever.search(query, top_k, where=where)
 
     def get_chunk_by_id(self, chunk_id: str):
         return self.retriever.get_chunk_by_id(chunk_id)
