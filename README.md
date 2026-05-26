@@ -39,13 +39,7 @@ cp .env.example .env
 
 3. Configure environment variables in `.env` (see `.env.example` for required variables)
 
-4. Run MongoDB (locally or via Docker):
-```bash
-# Using Docker
-docker run -d -p 27017:27017 --name mongodb mongo:latest
-```
-
-5. Start the backend server:
+4. Start the backend server:
 ```bash
 uv run uvicorn app.main:app --reload
 ```
@@ -59,7 +53,7 @@ python3 scripts/run_api.py
 uvicorn app.main:app --reload
 ```
 
-6. Start the React frontend:
+5. Start the React frontend:
 ```bash
 cd frontend
 npm install
@@ -123,7 +117,6 @@ The frontend defaults to `http://localhost:5173` and calls the backend at `http:
 - **MongoDB** - Primary database for user accounts, chat sessions, and message history
 - **OpenRouter** - Unified API for accessing various LLM and embedding models
 - **React + Vite** - Role-aware frontend dashboard with real-time chat capabilities
-- **Docker** - Containerization support for MongoDB and application deployment
 
 ### Data Flow
 1. **Knowledge Ingestion**: Administrators ingest content via URLs or raw text → Content is scraped/processed → Text is chunked → Embeddings generated → Stored in ChromaDB
