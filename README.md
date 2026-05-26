@@ -37,18 +37,26 @@ Note: This repo also includes a `venv` symlink to `.venv`, so `source venv/bin/a
 cp .env.example .env
 ```
 
-3. Configure environment variables in `.env`
+3. Configure environment variables in `.env` (see `.env.example` for required variables)
 
-4. Run MongoDB (locally or via Docker)
+4. Run MongoDB (locally or via Docker):
+```bash
+# Using Docker
+docker run -d -p 27017:27017 --name mongodb mongo:latest
+```
 
-5. Start the server:
+5. Start the backend server:
 ```bash
 uv run uvicorn app.main:app --reload
 ```
 
-Alternative (works even when `uvicorn` isn't on your PATH):
+Alternative methods:
 ```bash
+# Direct Python execution
 python3 scripts/run_api.py
+
+# Using uvicorn directly (if installed)
+uvicorn app.main:app --reload
 ```
 
 6. Start the React frontend:
@@ -109,30 +117,91 @@ The frontend defaults to `http://localhost:5173` and calls the backend at `http:
 
 ## Architecture
 
-- **FastAPI** - Backend API framework
-- **LangChain** - RAG pipeline and document processing
-- **ChromaDB** - Vector database for embeddings
-- **MongoDB** - User, session, and message storage
-- **OpenRouter** - LLM and embedding models
-- **React + Vite** - Role-aware frontend dashboard
+- **FastAPI** - Backend API framework providing REST endpoints
+- **LangChain** - RAG pipeline orchestration, document processing, and chain management
+- **ChromaDB** - Vector database for storing and retrieving document embeddings
+- **MongoDB** - Primary database for user accounts, chat sessions, and message history
+- **OpenRouter** - Unified API for accessing various LLM and embedding models
+- **React + Vite** - Role-aware frontend dashboard with real-time chat capabilities
+- **Docker** - Containerization support for MongoDB and application deployment
+
+### Data Flow
+1. **Knowledge Ingestion**: Administrators ingest content via URLs or raw text → Content is scraped/processed → Text is chunked → Embeddings generated → Stored in ChromaDB
+2. **Chat Processing**: Users send messages → Session retrieved from MongoDB → Relevant context retrieved from ChromaDB → LLM generates response using RAG → Response stored in MongoDB
+
+### Security
+- JWT-based authentication for API endpoints
+- Role-based access control (admin/user)
+- Environment variable configuration for sensitive data
+- CORS middleware for frontend-backend communication
 
 ## Directory Structure
 
 ```
 app/
 ├── api/
-│   └── routers/       # FastAPI route handlers (auth, chat, ingest, retrieval, health)
-├── services/          # Business logic services (chat, ingest, retrieval, etc.)
-├── langchain_components/  # LangChain utilities (embeddings, retrievers, chains)
-├── db/
-│   ├── chroma.py      # ChromaDB client
-│   ├── mongo.py       # MongoDB client
-│   └── repositories/  # Data access layer (session, message, document)
-├── core/              # Configuration, logging, exceptions
-├── utils/             # Utility functions
-├── schemas/           # Pydantic models for API
-└── prompts/           # LLM prompt templates
-scripts/              # Utility scripts for data ingestion
-data/                 # Raw and processed data storage
-frontend/             # React + Vite frontend application
+│   ├── deps.py          # Dependency injection (database connections)
+│   └── routers/         # FastAPI route handlers
+│       ├── auth.py      # Authentication endpoints
+│       ├── chat.py      # Chat session and message endpoints
+│       ├── health.py    # Health check endpoints
+│       ├── ingest.py    # Knowledge ingestion endpoints
+│       └── retrieval.py # Document retrieval endpoints
+├── core/                # Application configuration and utilities
+│   ├── config.py        # Environment variable management
+│   ├── exceptions.py    # Custom exception classes
+│   └── logging.py       # Logging configuration
+├── db/                  # Database connections and repositories
+│   ├── chroma.py        # ChromaDB client wrapper
+│   ├── mongo.py         # MongoDB client wrapper
+│   └── repositories/    # Data access layer
+│       ├── chat.py      # Chat session operations
+│       ├── message.py   # Message operations
+│       └── document.py  # Document/chunk operations
+├── langchain_components/# LangChain integrations
+│   ├── embeddings.py    # OpenRouter embedding models
+│   ├── retriever.py     # ChromaDB retriever wrapper
+│   └── chains.py        # RAG chain configurations
+├── prompts/             # LLM prompt templates
+├── schemas/             # Pydantic models for request/response validation
+├── services/            # Business logic implementations
+│   ├── chat_service.py      # Chat session management
+│   ├── chunking_service.py  # Text chunking strategies
+│   ├── embedding_service.py # Embedding generation
+│   ├── ingest_service.py    # Knowledge ingestion pipeline
+│   ├── llm_service.py       # LLM interaction wrapper
+│   ├── memory_service.py    # Chat history management
+│   ├── processing_service.py# Document processing utilities
+│   ├── retrieval_service.py # Semantic search operations
+│   └── scraping_service.py  # Web content extraction
+├── main.py              # FastAPI application entry point
+└── utils/               # Cross-cutting utility functions
+
+scripts/                 # Utility and maintenance scripts
+├── build_rag_db.py      # Build knowledge base from seed data
+├─ ingest_offline_corpus.py # Ingest documents from local files
+├─ ingest_seed_data.py   # Initial knowledge base population
+├─ reindex.py            # Rebuild vector indexes
+├─ run_api.py            # Alternative backend startup script
+├─ snapshot_rag_db.py    # Backup knowledge base
+└─ sources.json          # Default ingestion sources
+
+data/                    # Data storage directories
+├── raw/                 # Unprocessed source documents
+└── processed/           # Processed documents and chunks
+
+frontend/                # React + Vite frontend application
+├── src/
+│   ├── components/      # Reusable UI components
+│   ├── pages/           # Application pages
+│   ├── hooks/           # Custom React hooks
+│   ├── contexts/        # React context providers
+│   ├── services/        # API service wrappers
+│   ├── utils/           # Frontend utilities
+│   └── App.jsx          # Main application component
+├── public/              # Static assets
+├── index.html           # HTML entry point
+├── vite.config.js       # Vite configuration
+├── package.json         # Dependencies and scripts
+└── .env.example         # Frontend environment variables
 ```
